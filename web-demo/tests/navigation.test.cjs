@@ -1,0 +1,20 @@
+const assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs'),path=require('node:path');
+const elements=new Map(),el=s=>{if(!elements.has(s))elements.set(s,{innerHTML:'',textContent:'',style:{},setAttribute(){},addEventListener(){}});return elements.get(s)};
+let i=0;const ctx=vm.createContext({Farm:require('../accounting.js'),Backup:require('../backup.js'),document:{querySelector:el,querySelectorAll:()=>[],addEventListener(){}},window:{scrollTo(){}},localStorage:{getItem:()=>null,setItem(){}},crypto:{randomUUID:()=>String(++i)},structuredClone,Date,console,setTimeout});
+vm.runInContext(fs.readFileSync(path.join(__dirname,'../app.js'),'utf8'),ctx);
+vm.runInContext(`
+db={...structuredClone(seed),adults:[],movements:[]};for(const m of db.matings)for(const sex of ['male','female'])if(!db.adults.some(a=>a.sex===sex&&a.name===m[sex]))db.adults.push({id:crypto.randomUUID(),name:m[sex],sex});
+const completed=db.matings.find(m=>m.done),l=db.litters.find(l=>l.matingId===completed.id);
+if(!matingHTML(completed).includes('data-jump="litters:'+l.id+'"'))throw Error('Missing mating-to-litter link');
+if(!litterHTML(l,false).includes('data-jump="young:'+l.id+'"'))throw Error('Missing litter-to-young link');
+if(!litterHTML(l,true).includes('data-jump="litters:'+l.id+'"'))throw Error('Missing young-to-litter link');
+if(!litterHTML(l,true).includes('data-jump="matings:'+completed.id+'"'))throw Error('Missing return to mating');
+const parent=db.adults.find(a=>a.name===completed.female);
+if(!parentLinks(completed).includes('adults:'+parent.id))throw Error('Missing parent link');
+if(!adultRelations(parent).includes('matings:'+completed.id)||!adultRelations(parent).includes('litters:'+l.id))throw Error('Missing reciprocal adult links');
+tab='litters';focusId=l.id;navigate('adults',parent.id);if(focusId!==parent.id||tab!=='adults')throw Error('Wrong target');
+const prev=routeStack.pop();if(prev.tab!=='litters'||prev.focusId!==l.id)throw Error('Back loses source card');
+Farm.move(db,{kind:'adult',sourceId:parent.id,reason:'sold',count:1,id:'sale',date:today()});navigate('adults',parent.id);if(!$('#content').innerHTML.includes('data-record="'+parent.id+'"'))throw Error('Departed parent unavailable');
+`,ctx);
+assert.ok(elements.get('#content').innerHTML.includes('Связанные записи'));
+console.log('Passed: reciprocal parent/mating/litter/young links, exact source in back stack, departed parent access.');
