@@ -1826,8 +1826,9 @@ fun RabbitFarmApp() {
                     val completedIds = kindlingHistory.mapNotNull {
                         it.split("|").getOrNull(1)
                     }.toSet()
-                    val pendingCount = matingList.count {
-                        it.split("|").getOrNull(0) !in completedIds
+                    val pendingCount = matingList.count { record ->
+                        val id = record.split("|").getOrElse(0) { "" }
+                        id !in completedIds
                     }
                     Text("Ожидают окрола: $pendingCount · Завершено: ${matingList.size - pendingCount}",
                         fontWeight = FontWeight.SemiBold)
@@ -3161,7 +3162,7 @@ fun RabbitFarmApp() {
                     enabled =
                         matingFemale.isNotBlank() &&
                                 matingMale.isNotBlank() &&
-                                matingDate.isNotBlank()
+                                (parseRabbitDate(matingDate)?.let { !it.isAfter(LocalDate.now()) } == true)
                 ) {
 
                     Text(
