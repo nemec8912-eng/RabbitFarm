@@ -1,8 +1,9 @@
 const assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs'),path=require('node:path');
 const elements=new Map(),el=s=>{if(!elements.has(s))elements.set(s,{innerHTML:'',textContent:'',style:{},setAttribute(){},addEventListener(){}});return elements.get(s)};
-let i=0;const ctx=vm.createContext({Farm:require('../accounting.js'),document:{querySelector:el,querySelectorAll:()=>[],addEventListener(){}},window:{scrollTo(){}},localStorage:{getItem:()=>null,setItem(){}},crypto:{randomUUID:()=>String(++i)},structuredClone,Date,console,setTimeout});
+let i=0;const ctx=vm.createContext({Farm:require('../accounting.js'),Backup:require('../backup.js'),document:{querySelector:el,querySelectorAll:()=>[],addEventListener(){}},window:{scrollTo(){}},localStorage:{getItem:()=>null,setItem(){}},crypto:{randomUUID:()=>String(++i)},structuredClone,Date,console,setTimeout});
 vm.runInContext(fs.readFileSync(path.join(__dirname,'../app.js'),'utf8'),ctx);
 vm.runInContext(`
+db={...structuredClone(seed),adults:[],movements:[]};for(const m of db.matings)for(const sex of ['male','female'])if(!db.adults.some(a=>a.sex===sex&&a.name===m[sex]))db.adults.push({id:crypto.randomUUID(),name:m[sex],sex});
 const completed=db.matings.find(m=>m.done),l=db.litters.find(l=>l.matingId===completed.id);
 if(!matingHTML(completed).includes('data-jump="litters:'+l.id+'"'))throw Error('Missing mating-to-litter link');
 if(!litterHTML(l,false).includes('data-jump="young:'+l.id+'"'))throw Error('Missing litter-to-young link');
