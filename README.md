@@ -1,7 +1,11 @@
 # RabbitFarm
 
-Восстановление Android-приложения RabbitFarm (`com.rabbit.farm`).
+Восстановленные исходники Android-приложения RabbitFarm (`com.rabbit.farm`).
 
-Исходники извлечены из архива Android Studio проекта. Для полной сборки пока необходимы исходные файлы `gradle/libs.versions.toml` и `gradle/wrapper/gradle-wrapper.jar`.
+Исходники извлечены из пользовательского архива `app.7z`.
 
-Не публиковать `.jks`, `local.properties` и пароли.
+**Важно:** для полноценной сборки потребуется оригинальная папка `gradle/`, в частности `gradle/libs.versions.toml` и `gradle/wrapper/gradle-wrapper.jar`. Они не были доступны в переданных файлах.
+
+Не публикуйте ключ подписи `.jks`, `local.properties` и пароли.
+
+Найденная готовая debug APK предоставляется отдельно, в этот архив не включена.
