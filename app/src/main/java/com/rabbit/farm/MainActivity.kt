@@ -80,6 +80,16 @@ fun RabbitFarmApp() {
         )
     }
 
+    val backupExportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri != null) {
+            runCatching { exportRabbitBackup(context, uri) }
+                .onSuccess { android.widget.Toast.makeText(context, "Резервная копия сохранена", android.widget.Toast.LENGTH_LONG).show() }
+                .onFailure { android.widget.Toast.makeText(context, "Не удалось сохранить копию: " + it.message, android.widget.Toast.LENGTH_LONG).show() }
+        }
+    }
+
     var selectedTab by remember {
         mutableStateOf(AppTab.CURRENT)
     }
@@ -751,6 +761,11 @@ fun RabbitFarmApp() {
                     modifier =
                         Modifier.height(12.dp)
                 )
+
+                OutlinedButton(
+                    onClick = { backupExportLauncher.launch("RabbitFarm-Android-" + LocalDate.now() + ".json") },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Сохранить копию для переноса") }
 
                 // =================================================
                 // НАПОМИНАНИЕ ОБ ОТСАДКЕ
