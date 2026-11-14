@@ -248,6 +248,10 @@ fun RabbitFarmApp() {
         mutableStateOf("")
     }
 
+    // Родительская пара берётся из выбранной вязки.
+    var youngFather by remember { mutableStateOf("") }
+    var selectedMatingId by remember { mutableStateOf("") }
+
     var youngBirthDate by remember {
         mutableStateOf("")
     }
@@ -345,6 +349,14 @@ fun RabbitFarmApp() {
                 "mating_list",
                 emptySet()
             )?.toList() ?: emptyList()
+        )
+    }
+
+    // id | matingId | mother | father | birthDate | bornCount
+    // История окролов остаётся даже после выбытия молодняка.
+    var kindlingHistory by remember {
+        mutableStateOf(
+            prefs.getStringSet("kindling_history", emptySet())?.toList() ?: emptyList()
         )
     }
 
@@ -720,7 +732,14 @@ fun RabbitFarmApp() {
             true
     }
 
-    MaterialTheme {
+    MaterialTheme(
+        colorScheme = lightColorScheme(
+            primary = Color(0xFF236B4D),
+            secondary = Color(0xFF497C5A),
+            background = Color(0xFFF8FAF6),
+            surface = Color(0xFFF8FAF6)
+        )
+    ) {
 
         Surface(
             modifier =
@@ -747,10 +766,28 @@ fun RabbitFarmApp() {
                         FontWeight.Bold
                 )
 
-                Spacer(
-                    modifier =
-                        Modifier.height(12.dp)
-                )
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFE6F3E9)),
+                    border = BorderStroke(1.dp, Color(0xFFA8D0B3))
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("Племенной учёт", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text("Кролики  →  Вязка  →  Окрол  →  Молодняк")
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text("Вязок: ${matingList.size} · Записано окролов: ${kindlingHistory.size}")
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Button(
+                            onClick = { selectedTab = AppTab.MATINGS },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("Открыть историю разведения") }
+                    }
+                }
+                Spacer(modifier = Modifier.height(14.dp))
 
                 // =================================================
                 // НАПОМИНАНИЕ ОБ ОТСАДКЕ
@@ -1784,23 +1821,33 @@ fun RabbitFarmApp() {
                         "Вязки"
                     )
 
-                    matingList.forEach { mating ->
+                    Text("Шаг 1: записать вязку. Шаг 2: открыть её карточку и внести результат окрола.")
+                    Spacer(modifier = Modifier.height(10.dp))
+                    val completedIds = kindlingHistory.mapNotNull {
+                        it.split("|").getOrNull(1)
+                    }.toSet()
+                    val pendingCount = matingList.count {
+                        it.split("|").getOrNull(0) !in completedIds
+                    }
+                    Text("Ожидают окрола: $pendingCount · Завершено: ${matingList.size - pendingCount}",
+                        fontWeight = FontWeight.SemiBold)
+                    Spacer(modifier = Modifier.height(10.dp))
 
-                        MatingCard(
-                            mating
-                        ) { female ->
-
-                            youngMother =
-                                female
-
-                            youngBirthDate =
-                                ""
-
-                            youngCountText =
-                                ""
-
-                            showYoungDialog =
-                                true
+                    matingList.sortedByDescending {
+                        parseRabbitDate(it.split("|").getOrElse(3) { "" }) ?: LocalDate.MIN
+                    }.forEach { mating ->
+                        val matingId = mating.split("|").getOrElse(0) { "" }
+                        val result = kindlingHistory.firstOrNull {
+                            it.split("|").getOrNull(1) == matingId
+                        }
+                        MatingCard(mating, result) { chosenMating ->
+                            val details = chosenMating.split("|")
+                            selectedMatingId = details.getOrElse(0) { "" }
+                            youngMother = details.getOrElse(1) { "" }
+                            youngFather = details.getOrElse(2) { "" }
+                            youngBirthDate = ""
+                            youngCountText = ""
+                            showYoungDialog = true
                         }
                     }
                 }
@@ -1985,29 +2032,11 @@ fun RabbitFarmApp() {
                 )
 
                 Button(
-                    onClick = {
-
-                        youngMother =
-                            ""
-
-                        youngBirthDate =
-                            ""
-
-                        youngCountText =
-                            ""
-
-                        showYoungDialog =
-                            true
-                    },
-                    modifier =
-                        Modifier.fillMaxWidth(),
-                    shape =
-                        RoundedCornerShape(8.dp)
+                    onClick = { selectedTab = AppTab.MATINGS },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
-
-                    Text(
-                        "Добавить молодняк"
-                    )
+                    Text("Записать окрол по вязке")
                 }
 
                 Spacer(
@@ -3159,173 +3188,88 @@ fun RabbitFarmApp() {
     }
 
     // =====================================================
-    // ОКРОЛ
+    // ОКРОЛ: строго по выбранной вязке
     // =====================================================
 
-    if (
-        showYoungDialog
-    ) {
+    if (showYoungDialog) {
+        val chosenMating = matingList.firstOrNull {
+            it.split("|").getOrElse(0) { "" } == selectedMatingId
+        }
+        val sourceMatingDate = chosenMating?.split("|")?.getOrElse(3) { "" } ?: ""
+        val validBirthDate = isValidKindlingDate(youngBirthDate, sourceMatingDate)
+        val recorded = kindlingHistory.any {
+            it.split("|").getOrNull(1) == selectedMatingId
+        }
+        val count = youngCountText.toIntOrNull()
 
         AlertDialog(
-            onDismissRequest = {
-                showYoungDialog =
-                    false
-            },
-
-            title = {
-                Text(
-                    "Добавить окрол"
-                )
-            },
-
+            onDismissRequest = { showYoungDialog = false },
+            title = { Text("Записать окрол") },
             text = {
-
-                Column {
-
-                    Text(
-                        "Мать",
-                        fontWeight =
-                            FontWeight.Bold
-                    )
-
-                    if (
-                        youngMother.isNotBlank()
-                    ) {
-
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    Text("Родительская пара", fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("Самка: $youngMother")
+                    Text("Самец: $youngFather")
+                    Text("Вязка: $sourceMatingDate")
+                    Spacer(modifier = Modifier.height(14.dp))
+                    DateField("Дата рождения крольчат", youngBirthDate) { youngBirthDate = it }
+                    if (youngBirthDate.isNotBlank() && !validBirthDate) {
                         Text(
-                            youngMother,
-                            fontWeight =
-                                FontWeight.Bold
+                            "Дата рождения должна быть не раньше вязки и не позже сегодняшнего дня.",
+                            color = MaterialTheme.colorScheme.error
                         )
-
-                    } else {
-
-                        femaleNames.forEach { name ->
-
-                            FilterChip(
-                                selected =
-                                    youngMother ==
-                                            name,
-                                onClick = {
-                                    youngMother =
-                                        name
-                                },
-                                label = {
-                                    Text(
-                                        name
-                                    )
-                                },
-                                modifier =
-                                    Modifier.fillMaxWidth()
-                            )
-                        }
                     }
-
-                    Spacer(
-                        modifier =
-                            Modifier.height(10.dp)
-                    )
-
-                    DateField(
-                        "Дата окрола",
-                        youngBirthDate
-                    ) {
-
-                        youngBirthDate =
-                            it
-                    }
-
-                    Spacer(
-                        modifier =
-                            Modifier.height(10.dp)
-                    )
-
+                    Spacer(modifier = Modifier.height(12.dp))
                     OutlinedTextField(
-                        value =
-                            youngCountText,
-                        onValueChange = {
-
-                            youngCountText =
-                                it.filter {
-                                        char ->
-                                    char.isDigit()
-                                }
-                        },
-                        label = {
-                            Text(
-                                "Количество крольчат"
-                            )
-                        }
+                        value = youngCountText,
+                        onValueChange = { youngCountText = it.filter(Char::isDigit) },
+                        label = { Text("Сколько крольчат родилось") },
+                        supportingText = { Text("Можно указать 0, если приплода не было") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
                     )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Родители, дата и количество сохранятся в истории этой вязки.",
+                        style = MaterialTheme.typography.bodySmall)
                 }
             },
-
             confirmButton = {
-
                 Button(
                     onClick = {
+                        if (chosenMating != null && validBirthDate && !recorded && count != null && count >= 0) {
+                            val id = System.currentTimeMillis().toString()
+                            val historyRecord = listOf(
+                                id, cleanField(selectedMatingId), cleanField(youngMother),
+                                cleanField(youngFather), cleanField(youngBirthDate), count.toString()
+                            ).joinToString("|")
+                            val historyUpdated = kindlingHistory + historyRecord
+                            kindlingHistory = historyUpdated
 
-                        val count =
-                            youngCountText
-                                .toIntOrNull()
-                                ?: 0
-
-                        val item =
-                            "${System.currentTimeMillis()}|" +
-                                    "${cleanField(youngMother)}|" +
-                                    "${cleanField(youngBirthDate)}|" +
-                                    "$count|0"
-
-                        val updated =
-                            youngList +
-                                    item
-
-                        youngList =
-                            updated
-
-                        prefs.edit()
-                            .putStringSet(
-                                "young_list",
-                                updated.toSet()
+                            val editor = prefs.edit().putStringSet(
+                                "kindling_history", historyUpdated.toSet()
                             )
-                            .apply()
-
-                        showYoungDialog =
-                            false
-
-                        selectedTab =
-                            AppTab.YOUNG
+                            if (count > 0) {
+                                // Первые 5 полей — старый формат. Новые: отец и ID вязки.
+                                val youngRecord = listOf(
+                                    id, cleanField(youngMother), cleanField(youngBirthDate),
+                                    count.toString(), "0", cleanField(youngFather), cleanField(selectedMatingId)
+                                ).joinToString("|")
+                                val youngUpdated = youngList + youngRecord
+                                youngList = youngUpdated
+                                editor.putStringSet("young_list", youngUpdated.toSet())
+                            }
+                            editor.apply()
+                            showYoungDialog = false
+                            selectedTab = AppTab.MATINGS
+                        }
                     },
-
-                    enabled =
-                        youngMother.isNotBlank() &&
-                                youngBirthDate.isNotBlank() &&
-                                (
-                                        youngCountText
-                                            .toIntOrNull()
-                                            ?: 0
-                                        ) > 0
-                ) {
-
-                    Text(
-                        "Сохранить"
-                    )
-                }
+                    enabled = chosenMating != null && !recorded && validBirthDate &&
+                        count != null && count >= 0
+                ) { Text("Сохранить результат") }
             },
-
             dismissButton = {
-
-                TextButton(
-                    onClick = {
-                        showYoungDialog =
-                            false
-                    }
-                ) {
-
-                    Text(
-                        "Отмена"
-                    )
-                }
+                TextButton(onClick = { showYoungDialog = false }) { Text("Отмена") }
             }
         )
     }
@@ -4111,6 +4055,8 @@ fun YoungCard(
             1
         ) { "" }
 
+    val father = parts.getOrElse(5) { "" }
+
     val date =
         parts.getOrElse(
             2
@@ -4182,6 +4128,8 @@ fun YoungCard(
                 fontWeight =
                     FontWeight.Bold
             )
+
+            Text(if (father.isBlank()) "Отец: не указан (старая запись)" else "Отец: $father")
 
             Text(
                 "Окрол: $date"
@@ -4555,81 +4503,42 @@ fun HistoryCard(
 @Composable
 fun MatingCard(
     mating: String,
+    kindling: String?,
     onKindling: (String) -> Unit
 ) {
-
-    val p =
-        mating.split("|")
-
-    val female =
-        p.getOrElse(
-            1
-        ) { "" }
-
-    val male =
-        p.getOrElse(
-            2
-        ) { "" }
-
-    val date =
-        p.getOrElse(
-            3
-        ) { "" }
+    val p = mating.split("|")
+    val female = p.getOrElse(1) { "" }
+    val male = p.getOrElse(2) { "" }
+    val date = p.getOrElse(3) { "" }
+    val born = kindling?.split("|")
+    val birthDate = born?.getOrElse(4) { "" } ?: ""
+    val bornCount = born?.getOrElse(5) { "" } ?: ""
+    val completed = born != null
 
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 8.dp),
-
-        colors =
-            CardDefaults.cardColors(
-                containerColor =
-                    Color(0xFFE7C8FA)
-            ),
-
-        border =
-            BorderStroke(
-                1.dp,
-                Color(0xFF6A1B9A)
-            ),
-
-        shape =
-            RoundedCornerShape(8.dp)
+        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (completed) Color(0xFFE6F3E9) else Color(0xFFFFF2DA)
+        ),
+        border = BorderStroke(1.dp, if (completed) Color(0xFF7EB595) else Color(0xFFE4B66F))
     ) {
-
-        Column(
-            modifier =
-                Modifier.padding(14.dp)
-        ) {
-
-            Text(
-                "$female × $male",
-                fontWeight =
-                    FontWeight.Bold
-            )
-
-            Text(
-                "Дата вязки: $date"
-            )
-
-            Spacer(
-                modifier =
-                    Modifier.height(8.dp)
-            )
-
-            Button(
-                onClick = {
-                    onKindling(
-                        female
-                    )
-                },
-                modifier =
-                    Modifier.fillMaxWidth()
-            ) {
-
-                Text(
-                    "Окрол"
-                )
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("$female  ×  $male", style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(6.dp))
+            Text("Дата вязки: $date")
+            Spacer(modifier = Modifier.height(6.dp))
+            if (completed) {
+                Text("✓ Окрол записан", color = Color(0xFF236B4D), fontWeight = FontWeight.Bold)
+                Text("Дата рождения: $birthDate")
+                Text("Родилось крольчат: $bornCount", fontWeight = FontWeight.SemiBold)
+            } else {
+                Text("Ожидает записи окрола", fontWeight = FontWeight.Medium)
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(onClick = { onKindling(mating) }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Записать окрол")
+                }
             }
         }
     }
@@ -4668,6 +4577,12 @@ fun parseRabbitDate(
 
         null
     }
+}
+
+fun isValidKindlingDate(birthValue: String, matingValue: String): Boolean {
+    val birth = parseRabbitDate(birthValue) ?: return false
+    val mating = parseRabbitDate(matingValue) ?: return false
+    return !birth.isBefore(mating) && !birth.isAfter(LocalDate.now())
 }
 
 fun calculateAge(
@@ -4751,28 +4666,13 @@ fun calculateAgeDays(
 fun updateYoungSeparated(
     youngList: List<String>,
     selectedYoung: String
-): List<String> {
-
-    return youngList.map { young ->
-
-        if (
-            young !=
-            selectedYoung
-        ) {
-
-            young
-
-        } else {
-
-            val p =
-                young.split("|")
-
-            "${p.getOrElse(0) { System.currentTimeMillis().toString() }}|" +
-                    "${p.getOrElse(1) { "" }}|" +
-                    "${p.getOrElse(2) { "" }}|" +
-                    "${p.getOrElse(3) { "0" }}|" +
-                    "1"
-        }
+): List<String> = youngList.map { young ->
+    if (young != selectedYoung) young else {
+        val fields = young.split("|").toMutableList()
+        while (fields.size < 5) fields.add("")
+        fields[4] = "1"
+        // Поля 5 и 6 (отец и вязка) не теряются при отсадке.
+        fields.joinToString("|")
     }
 }
 
@@ -4781,41 +4681,17 @@ fun subtractYoungCount(
     selectedYoung: String,
     amount: Int
 ): List<String> {
-
-    val p =
-        selectedYoung.split("|")
-
-    val oldCount =
-        p.getOrElse(
-            3
-        ) { "0" }
-            .toIntOrNull()
-            ?: 0
-
-    val remaining =
-        oldCount -
-                amount
-
-    val result =
-        youngList.toMutableList()
-
-    result.remove(
-        selectedYoung
-    )
-
-    if (
-        remaining > 0
-    ) {
-
-        result.add(
-            "${p.getOrElse(0) { System.currentTimeMillis().toString() }}|" +
-                    "${p.getOrElse(1) { "" }}|" +
-                    "${p.getOrElse(2) { "" }}|" +
-                    "$remaining|" +
-                    "${p.getOrElse(4) { "0" }}"
-        )
+    val fields = selectedYoung.split("|").toMutableList()
+    val oldCount = fields.getOrElse(3) { "0" }.toIntOrNull() ?: 0
+    val result = youngList.toMutableList()
+    result.remove(selectedYoung)
+    val remaining = oldCount - amount
+    if (remaining > 0) {
+        while (fields.size < 5) fields.add("")
+        fields[3] = remaining.toString()
+        // При продаже и списании сохраняем всю родословную.
+        result.add(fields.joinToString("|"))
     }
-
     return result
 }
 
