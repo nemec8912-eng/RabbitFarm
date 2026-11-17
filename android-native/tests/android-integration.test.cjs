@@ -1,0 +1,13 @@
+const assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs'),path=require('node:path');
+const Farm=require('../app/src/main/assets/accounting.js'),Backup=require('../app/src/main/assets/backup.js');
+function boot(legacy,existing){const nodes=new Map(),events={},store=new Map(),reminders=[],el=s=>{if(!nodes.has(s))nodes.set(s,{innerHTML:'',style:{},setAttribute(){},addEventListener(){},close(){},showModal(){},value:''});return nodes.get(s)};if(existing)store.set('rabbitfarm-demo-v1',JSON.stringify(existing));class Storage{getItem(k){return null}setItem(k,v){}}let migrated=false;
+ const NativeFarm={readStorage:k=>store.get(k)||'',writeStorage:(k,v)=>{store.set(k,v);return true},hasLegacy:()=>!!legacy,migrationDone:()=>migrated,markMigrationDone:()=>{migrated=true},legacyBackup:()=>JSON.stringify(legacy),syncReminders:s=>reminders.push(JSON.parse(s)),exportJson(){},closeApp(){}};
+ const ctx=vm.createContext({Farm,Backup,window:{NativeFarm,scrollTo(){}},NativeFarm,Storage,localStorage:new Storage(),crypto:require('node:crypto').webcrypto,structuredClone,Date,Uint8Array,console,setTimeout:()=>{},document:{querySelector:el,querySelectorAll:()=>[],addEventListener:(name,fn)=>events[name]=fn}});
+ for(const f of ['native.js','app.js'])vm.runInContext(fs.readFileSync(path.join(__dirname,'../app/src/main/assets',f),'utf8'),ctx);events.DOMContentLoaded();return {run:s=>vm.runInContext(s,ctx),store,reminders,migrated:()=>migrated};}
+const legacy={format:'rabbitfarm-android-prefs',version:1,prefs:{rabbit_list:['A|Самец|01.01.2025|||','B|Самка|01.01.2025|||'],young_list:['1|B|01.11.2026|7|0']}};
+let r=boot(legacy);assert.equal(r.run('Farm.totals(db).current'),9);assert.ok(r.migrated());assert.equal(r.reminders.at(-1)[0].count,7);assert.equal(r.reminders.at(-1)[0].date,'2026-12-16');r.run('initialiseNative()');assert.equal(r.run('db.litters.length'),1);
+r.run('db.litters[0].weaned=true;render()');assert.equal(r.reminders.at(-1).length,0);assert.equal(r.run("dayDiff('2026-03-01','2026-04-15')"),45);
+const loaded=boot(legacy,JSON.parse(r.run('JSON.stringify(db)')));assert.equal(loaded.run('db.adults.length'),2);assert.equal(loaded.run('db.litters.length'),1);
+assert.throws(()=>Backup.validate({adults:[],litters:[],movements:[],matings:[{id:'m',date:'2026-01-01',due:'2026-02-01',duration:6}]}));
+r.run("db.matings=[{id:'m',male:'A',female:'B',date:'2026-11-10',duration:3,endDate:addDays('2026-11-10',2),due:'2026-12-11'}]");assert.ok(r.run('matingHTML(db.matings[0])').includes('3 дн.'));
+console.log('Passed: native storage, idempotent legacy migration, remaining-count reminders, cancellation, 45 calendar days and mating duration.');

@@ -1,0 +1,11 @@
+plugins { id 'com.android.application' }
+android {
+ namespace 'com.rabbit.farm'
+ compileSdk 35
+ defaultConfig { applicationId 'com.rabbit.farm'; minSdk 28; targetSdk 35; versionCode 3; versionName '2.0' }
+ compileOptions { sourceCompatibility JavaVersion.VERSION_1_8; targetCompatibility JavaVersion.VERSION_1_8 }
+ buildTypes {
+  debug { applicationIdSuffix '.preview'; versionNameSuffix '-preview'; minifyEnabled false }
+  release { minifyEnabled false }
+ }
+}
