@@ -109,7 +109,7 @@ class MainActivity : ComponentActivity() {
                 openFile?.onReceiveValue(null)
                 openFile = filePathCallback
                 val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
-                    type = "application/json"
+                    type = "*/*"
                     addCategory(Intent.CATEGORY_OPENABLE)
                 }
                 chooseFile.launch(Intent.createChooser(intent, "Импорт данных RabbitFarm"))
