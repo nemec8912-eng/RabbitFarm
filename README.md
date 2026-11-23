@@ -9,3 +9,6 @@
 Не публикуйте ключ подписи `.jks`, `local.properties` и пароли.
 
 Найденная готовая debug APK предоставляется отдельно, в этот архив не включена.
+
+
+APK сборка: GitHub Actions → Android APK → артефакт RabbitFarm-Android-APK.
