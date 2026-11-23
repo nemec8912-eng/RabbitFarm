@@ -26,6 +26,15 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.13'
+      - name: Check embedded dashboard JavaScript
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          html = Path('app/src/main/assets/rabbitfarm.html').read_text(encoding='utf-8')
+          assert html.count('<script>') == 1 and html.count('</script>') == 1
+          Path('/tmp/rabbitfarm.js').write_text(html.split('<script>')[1].split('</script>')[0])
+          PY
+          node --check /tmp/rabbitfarm.js
       - name: Compile RabbitFarm APK
         run: gradle :app:assembleDebug --stacktrace --no-daemon
       - name: Publish installable APK
